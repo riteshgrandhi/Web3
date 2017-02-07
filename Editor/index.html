@@ -6,6 +6,7 @@
 <script src="scripts/RenderPass.js"</script>
 <script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/OutlinePass.js"></script>
 <script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/ShaderPass.js"></script>
+<script type="text/javascript" src="scripts/Physijs/physi.js"></script>
 <body>
 <style>
 body{
@@ -18,9 +19,12 @@ body{
 }
 </style>
 <div id="menu">
-<input type="button" value="Lol" onclick="addNewObj()">
+<input type="button" value="Add" onclick="addNewObj()">
+<input type="text" id="sample" onkeypress="setObjName(event)">
 </div>
 <div id="viewport">
+</div>
+<div id="bottom">
 </div>
 </body>
 <script src="scripts/main.js">
