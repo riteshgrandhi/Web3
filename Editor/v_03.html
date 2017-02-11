@@ -1,0 +1,185 @@
+<script src="http://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://threejs.org/examples/js/controls/TransformControls.js"</script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/shaders/CopyShader.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/EffectComposer.js"</script>
+<script src="scripts/RenderPass.js"</script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/OutlinePass.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="http://threejs.org/examples/js/loaders/OBJLoader.js"></script>
+<script src="scripts/Physijs/physi.js"></script>
+<html>
+<head>
+<style>
+.dropbtn {
+    background-color: #4CAF0;
+    color: black;
+    padding: 10%;
+    min-width: 100px;
+    font-size: 75%;
+    border-style: hidden;
+    border-radius: 3px;
+    cursor: pointer;
+    width:100%;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    text-align: center;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 100px;
+    /*box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);*/
+    z-index: 1;
+    text-align: center;
+    padding: 0px 0%;
+}
+
+.dropdown-content input {
+    color: black;
+    background-color: #f9f9f9;
+    border-style: hidden;
+    min-width: 100px;
+    padding: 8%;
+    text-align: center;
+    font-size: 70%;
+}
+
+.dropdown-content input:hover {background-color: #f1f1f1}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown:hover .dropbtn {
+    background-color: #3e8e41;
+}
+.top ul{list-style-type:none;
+          }
+.top{
+        border:1px solid grey;
+        white-space: nowrap;
+        margin: 1%;
+        border-radius: 3px;
+        background-color : #444444;
+}
+.MidSection{
+      display: inline-block;
+      border:1px solid grey;
+      padding: 0.2%;
+      height: 60%;
+      vertical-align: top;
+}
+.button{
+      background-color : #444444;
+      color: lightgrey;
+      width:100%;
+			padding:1.5% 0%;
+			text-align:center;
+			border:1px hidden;}
+.full{
+  width: 100%;
+  margin: 1%;
+  white-space: nowrap;
+}
+.textbox{
+  width:65%;
+  padding: 1%;
+  background-color: grey;
+  color: lightgrey;
+  border:1px solid black;
+  border-radius: 5px;
+}
+body{
+  overflow-y: auto;
+  overflow-x: auto; 
+background-color : #222222;
+color : lightgrey;
+}
+/*td{
+  border:1px solid red;
+}*/
+</style>
+
+  
+</head>
+<body>
+
+
+<div class="top">
+<ul><div class="dropdown">
+  <button class="dropbtn">
+    <li>Objects</li>
+  </button>
+  <div class="dropdown-content">
+    <!--<a href="#">Cube</a>-->
+    <input type="button" value="Cube" onclick="addNewObj(1)"><br>
+    <input type="button" value="Cylinder" onclick="addNewObj(2)"><br>
+    <input type="button" value="Sphere" onclick="addNewObj(3)"><br>
+    <input type="button" value="Custom" onclick="addNewObj(4)"><br>
+  </div>
+</div>
+ <div class="dropdown">
+  <button class="dropbtn"> <li>Lamps</li></button>
+  <div class="dropdown-content">
+    <input type="button" value="Point" onclick=""><br>
+    <input type="button" value="Sun" onclick=""><br>
+    <input type="button" value="Spot" onclick=""><br>
+	
+  </div>
+</div>
+<div class="dropdown">
+  <button class="dropbtn"> <li>Particle System</li></button>
+  
+</div>  
+<div class="dropdown">
+  <button class="dropbtn"> <li>About</li></button>
+  
+</div>  
+  
+  
+</ul>
+</div>
+<div class="full">
+<div class="MidSection" id="objectList" style="padding:0.3%;width:20%;background-color:#444444;border-radius: 3px;"></div>
+
+<div class="MidSection" id="viewport" style="padding:0.3%;width: 50%;background-color : #444444;border-radius: 3px;"></div>
+
+<div class="MidSection" style="padding:0.3%;width:25%;background-color : #444444;border-radius: 3px;"> 
+ Name &nbsp;<input type="text" class="textbox" id="objName" style="width: 80%;" name="Name" onkeypress="setObjName(event)"></br></br>
+ <table id="propTable" style="width: 100%;">
+  <tr colspan="3">
+    <th>Transform</th>
+  </tr>
+  <tr>
+    <td>Position</td>
+    <td>X <input class="textbox" type="text"></td> 
+    <td>Y <input class="textbox" type="text"></td>
+    <td>Z <input class="textbox" type="text"></td>
+  </tr>
+  <tr>
+    <td>Rotation</td>
+    <td>X <input class="textbox" type="text"></td>
+    <td>Y <input class="textbox" type="text"></td>
+    <td>Z <input class="textbox" type="text"></td>
+  </tr>
+  <tr>
+  <td>Scale</td>
+    <td>X <input class="textbox" type="text"></td>
+    <td>Y <input class="textbox" type="text"></td>
+    <td>Z <input class="textbox" type="text"></td>
+  </tr>
+ </table>
+ </div>
+
+</div>
+<div id="bottom">
+</div>
+<script src="scripts/main.js"></script>
+</body>
+</html>
