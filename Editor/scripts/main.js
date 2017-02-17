@@ -1,8 +1,10 @@
-var scene, renderer, camera, controls,grid;
+var scene, renderer, camera, controls, grid;
 var userObjects = [];
 var selectionBox,selectionControls;
 var selectedObjects=[];
 var canvasElem = document.getElementById( "viewport" );
+var editorLog = document.getElementById( "editorLog" );
+var propertiesTab = document.getElementById( "propTab" );
 var WIDTH = canvasElem.getBoundingClientRect().width;
 var HEIGHT = canvasElem.getBoundingClientRect().height;
 
@@ -19,6 +21,8 @@ window.onload = function(){
 function init(){
 	//canvasElem = document.getElementById( "viewport" );
 	canvasElem.addEventListener( 'mouseup', onEditorMouseClick, false );
+	canvasElem.addEventListener( 'mousemove', updatePropertiesTab );
+	propertiesTab.addEventListener( 'change', onPropertiesChanged );
 	//window.addEventListener( 'resize', onCanvasResize, false);
 	window.addEventListener( 'keydown', onEditorKeyDown, false );
 	window.addEventListener( 'keyup', onEditorKeyUp, false );
@@ -71,19 +75,25 @@ function animate(){
 }
 function addNewObj(type){
 	var obj;
+	var defaultMaterial = new THREE.MeshBasicMaterial({color: 0xffffbb});
 	switch(type){
-		case 1: obj = new Physijs.BoxMesh(new THREE.BoxBufferGeometry(1, 1, 1), new THREE.MeshBasicMaterial({color: 0xffffbb}));
+		case 1: //obj = new Physijs.BoxMesh(new THREE.BoxBufferGeometry(1, 1, 1), defaultMaterial);
+				obj = new GameObject(new THREE.BoxBufferGeometry(1, 1, 1), defaultMaterial, Physijs.BoxMesh);
 				break;
-		case 2: obj = new Physijs.CylinderMesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 16), new THREE.MeshBasicMaterial({color: 0xffffbb}));
+		case 2: //obj = new Physijs.CylinderMesh(new THREE.CylinderGeometry(0.5, 0.5, 1, 16), defaultMaterial);
+				obj = new GameObject(new THREE.CylinderGeometry(0.5, 0.5, 1, 16), defaultMaterial, Physijs.CylinderMesh);
 				break;
-		case 3: obj = new Physijs.SphereMesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshBasicMaterial({color: 0xffffbb}));
+		case 3: //obj = new Physijs.SphereMesh(new THREE.SphereGeometry(0.5, 12, 8), defaultMaterial);
+				obj = new GameObject(new THREE.SphereGeometry(0.5, 12, 8), defaultMaterial, Physijs.SphereMesh);
 				break;
-		case 4: addCustomObj(new THREE.MeshBasicMaterial({color: 0xffffbb}));
+		case 4: addCustomObj(defaultMaterial);
 					return;
 				break;
 	}
 	scene.add(obj);
 	obj.__dirtyPosition = true;
+    obj.__dirtyRotation = true;
+
 	userObjects.push(obj);
 	obj.name="object." + userObjects.length;
 	updateList();
@@ -156,15 +166,13 @@ function onEditorMouseClick(event){
 }
 
 function selectObject(obj){
-	while(obj.parent!=scene){
-		obj=obj.parent;
-	}
 	selectedObjects = [];
 	selectedObjects.push(obj);
 	selectionControls.attach(obj);
-	document.getElementById("objName").value = obj.name;
+	//document.getElementById("objName").value = obj.name;
 	setColor(parseInt(obj.userData.ButtonId) , false);
 	document.getElementById("bottom").innerHTML = obj.name;
+	updatePropertiesTab();
 	//render();
 }
 
@@ -193,8 +201,8 @@ function onEditorKeyUp(event){
 
 function setObjName(event){
 	var key = event.keyCode;
-	if(key == 13){
-		event.preventDefault();
+	if(key == 13 || key == 9){
+		//event.preventDefault();
 		var tempName = document.getElementById("objName").value;
 		if( selectedObjects.length > 0 ){
 			if(tempName != ""){
@@ -257,20 +265,20 @@ function setColor(btn, setFromList = true){
 }
 
 function addCustomObj(material){
-	var objGeo = new THREE.Geometry();
-	//var obj = new Physijs.BoxMesh(objGeo, material);
 	
 	var objPath = window.prompt("Enter Object Path(Web):");
 	var texPath = "";//window.prompt("Enter Texture Path(Web):");
 	var manager = new THREE.LoadingManager();
 				manager.onProgress = function ( item, loaded, total ) {
 					console.log( item, loaded, total );
+					editorLog.innerHTML += "<span style='color:lightgreen'>" + item + ' loaded <br></span>';
 				};
 	var texture = new THREE.TextureLoader( manager ).load(texPath);
     var loader  = new THREE.OBJLoader( manager ).load(objPath,  
     	function ( object )
         {
         	var name;
+        	var objGeometry;
             object.traverse(
                 function ( child )
                 {
@@ -278,30 +286,140 @@ function addCustomObj(material){
                     {
                     	child.material = material;
 						//child.material.map = texture;
+						objGeometry = child.geometry;
 						name = child.name;
 					}
 				} );
-			scene.add(object);
-			userObjects.push(object);
-			object.name = name == '' ? "object." + userObjects.length : name;
+
+            while(object.parent!=null){
+				object=object.parent;
+			}
+			var obj = new Physijs.BoxMesh( objGeometry, material);
+			/*obj.__dirtyPosition = true;
+    		obj.__dirtyRotation = true;*/
+
+    		scene.add(obj);
+			userObjects.push(obj);
+			
+			obj.name = name == '' ? "object." + userObjects.length : name;
 			updateList();
 			if(selectionBox == undefined){
 				selectionBox = new THREE.BoxHelper(object, 0xff0000);
 				scene.add(selectionBox);
 			}else{
-				selectionBox.update(object);
+				selectionBox.update(obj);
 			}
-			selectObject(object);
+			selectObject(obj);
 			animate();
 		},
 		function ( xhr ) {
 			if ( xhr.lengthComputable ) {
 				var percentComplete = xhr.loaded / xhr.total * 100;
 				console.log( Math.round(percentComplete, 2) + '% downloaded' );
+				editorLog.innerHTML += Math.round(percentComplete, 2) + '% downloaded <br>';
 				}
 			},
 			function ( xhr ) {
-				window.alert("failed to load resource from " + objPath);
+				//window.alert("failed to load resource from " + objPath);
+				editorLog.innerHTML += "<span style='color:red'>" + "Failed to load resource from '" + objPath + "'<br></span>";
 				return null;
 			} );
 }
+
+function updateTransforms(event = null){
+	if(event){
+		var key = event.keyCode;
+		var fac = 1;
+		targ = event.target;
+		//event.preventDefault();
+		var trans;
+		if(targ.id.charAt(0) == 'p'){
+			trans = selectedObjects[0].position;
+		}else if(targ.id.charAt(0) == 'r'){
+			trans = selectedObjects[0].rotation;
+			fac = Math.PI / 180;
+		}else{
+			trans = selectedObjects[0].scale;
+		}
+		//console.log(key);
+		if(key == 13 || key == 9){
+
+			if(targ.id.charAt(1) == 'X')
+					trans.x = parseFloat(targ.value * fac);
+			else if(targ.id.charAt(1) == 'Y')
+					trans.y = parseFloat(targ.value * fac);
+			else
+					trans.z = parseFloat(targ.value * fac);
+			document.getElementById(targ.id).blur();
+		}
+	}
+}
+
+function onPropertiesChanged(event){
+	console.log("properties changed");
+	var targ = event.target;
+	if(targ.id.substring(0,4) == "phy_"){
+		if(targ.id.substring(4) == "static"){
+			if(targ.checked){
+				selectedObjects[0].setAngularFactor( new THREE.Vector3() );
+				selectedObjects[0].setLinearFactor( new THREE.Vector3() );
+				selectedObjects[0].isStatic = true;
+				//selectedObjects[0]._physijs.mass = 0;
+			}else{
+				selectedObjects[0].setAngularFactor( new THREE.Vector3( 1 ,1 ,1 ) );
+				selectedObjects[0].setLinearFactor( new THREE.Vector3( 1 ,1 ,1 ) );
+				selectedObjects[0].isStatic = false;
+				//selectedObjects[0]._physijs.mass = 1;
+			}
+		}
+		if(targ.id.substring(4) == "friction"){
+			selectedObjects[0].setFriction( parseFloat(targ.value) );
+			targ.blur();
+		}if(targ.id.substring(4) == "restitution"){
+			selectedObjects[0].setRestitution( parseFloat(targ.value) );
+			targ.blur();
+		}
+	}
+}
+function updatePropertiesTab(){
+	if(selectedObjects[0]){
+		var obj = selectedObjects[0];
+		document.getElementById("objName").value = obj.name;
+		document.getElementById("pX").value = obj.position.x;
+		document.getElementById("pY").value = obj.position.y;
+		document.getElementById("pZ").value = obj.position.z;
+		document.getElementById("rX").value = obj.rotation.x * 180 / Math.PI;
+		document.getElementById("rY").value = obj.rotation.y * 180 / Math.PI;
+		document.getElementById("rZ").value = obj.rotation.z * 180 / Math.PI;
+		document.getElementById("sX").value = obj.scale.x;
+		document.getElementById("sY").value = obj.scale.y;
+		document.getElementById("sZ").value = obj.scale.z;
+		document.getElementById("phy_static").checked = obj.isStatic;
+		document.getElementById("phy_mass").value = obj.mass;
+		document.getElementById("phy_friction").value = obj.friction;
+		document.getElementById("phy_restitution").value = obj.restitution;
+	}
+}
+//GameObject Class start
+function GameObject(geometry, material, Meshtype){
+	this.isStatic = false;
+	this.friction = 0.8;
+	this.restitution = 0.2;
+
+	this.phyMaterial = Physijs.createMaterial( material, this.friction, this.restitution );
+	Meshtype.call(this, geometry, this.phyMaterial);
+
+	this.mass = 1;
+	//console.log(this.phyMaterial._physijs.friction);
+}
+GameObject.prototype = new Physijs.Mesh;
+GameObject.prototype.constructor = GameObject;
+GameObject.prototype.setFriction = function(friction){
+	this.friction = friction;
+	this.phyMaterial._physijs.friction = this.friction;
+}
+GameObject.prototype.setRestitution = function(restitution){
+	this.restitution = restitution;
+	this.phyMaterial._physijs.restitution = this.restitution;
+}
+//GameObject Class end
