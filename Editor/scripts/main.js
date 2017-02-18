@@ -8,6 +8,7 @@ var propertiesTab = document.getElementById( "propTab" );
 var WIDTH = canvasElem.getBoundingClientRect().width;
 var HEIGHT = canvasElem.getBoundingClientRect().height;
 
+var scene_gravity = new THREE.Vector3( 0, -10, 0);
 var simulatePhysics = false;
 var clock = new THREE.Clock();
 Physijs.scripts.worker = 'scripts/Physijs/physijs_worker.js';
@@ -31,14 +32,14 @@ function init(){
 	
 	//scene = new THREE.Scene();
 	scene = new Physijs.Scene();
-
+	scene.setGravity( scene_gravity );
 	camera = new THREE.PerspectiveCamera( 45, WIDTH/HEIGHT, 0.1, 1000 );
 	camera.position.set( 0, 5, 25 );
 	scene.add( camera );
 
 	renderer.setSize( WIDTH, HEIGHT );
 	renderer.setClearColor( new THREE.Color(0x888888) );
-
+	//renderer.sortObjects = false;
 	
 	canvasElem.style.width = WIDTH;
 	canvasElem.style.height = HEIGHT;
@@ -87,15 +88,13 @@ function addNewObj(type){
 				obj = new GameObject(new THREE.SphereGeometry(0.5, 12, 8), defaultMaterial, Physijs.SphereMesh);
 				break;
 		case 4: addCustomObj(defaultMaterial);
-					return;
+				return;
+		case 5: obj = new ParticleSystem();
 				break;
 	}
 	scene.add(obj);
-	obj.__dirtyPosition = true;
-    obj.__dirtyRotation = true;
-
 	userObjects.push(obj);
-	obj.name="object." + userObjects.length;
+	obj.name = "object." + userObjects.length;
 	updateList();
 
 	if(selectionBox == undefined){
@@ -107,6 +106,10 @@ function addNewObj(type){
 	
 	selectObject(obj);
 	//document.getElementById( "menu" ).innerHTML += selectedObjects[0].name;
+
+	obj.__dirtyPosition = true;
+    obj.__dirtyRotation = true;
+
 	animate();
 	return false;
 }
@@ -117,8 +120,7 @@ function updateViewportControls(){
 }
 
 function onEditorMouseClick(event){
-	var xfac = 0;//-0.022;
-	var yfac = 0;//0.095;
+
 	event.preventDefault();
 	//console.log("up");
 	var rect = canvasElem.getBoundingClientRect();
@@ -127,8 +129,6 @@ function onEditorMouseClick(event){
 	var raycaster = new THREE.Raycaster();
 	var dir = new THREE.Vector3();
 	var mouse = new THREE.Vector2();
-	/*mouse.x = ( event.clientX / WIDTH ) * 2 - 1 + xfac;
-	mouse.y = - ( event.clientY / HEIGHT ) * 2 + 1 + yfac;*/
 	mouse.x = (( event.clientX - rect.left ) / rect.width) * 2 - 1;
 	mouse.y = -(( event.clientY - rect.top ) / rect.height) * 2 + 1;
 
@@ -196,6 +196,9 @@ function onEditorKeyUp(event){
 	var key = event.keyCode;
 	if(key == 17){
 		selectionControls.setTranslationSnap(null);
+	}if(key == 110 || key == 190){
+		console.log("lol");
+		camera.lookAt(selectedObjects[0].position);
 	}
 }
 
@@ -423,3 +426,102 @@ GameObject.prototype.setRestitution = function(restitution){
 	this.phyMaterial._physijs.restitution = this.restitution;
 }
 //GameObject Class end
+//Particle System Class start
+function ParticleSystem(count = 10000, size = 0.2, rate = 0.1 ){
+	this.particle_count = count;
+	this.rate = rate;
+	this.active_particles = Math.round(count * 0.016);
+	this.gravity_influence = 1;
+	this.clock = new THREE.Clock();
+	this.point_velocities = [];
+
+	var particle_points = new THREE.Geometry();
+	var pMaterial = new THREE.PointsMaterial({
+      color: 0xFFFFFF,
+      size: size,
+      transparent:true,
+      opacity:0.5
+    });
+
+    var mesh_trans_material = new THREE.MeshLambertMaterial( {transparent:true, opacity:0} );
+	THREE.Mesh.call( this, new THREE.BoxBufferGeometry( 1, 1, 1), mesh_trans_material );
+	//GameObject.call( this, new THREE.BoxBufferGeometry( 1, 1, 1), mesh_trans_material, Physijs.BoxMesh );
+	//this.mass = 0;
+
+	var range = this.scale;
+    for (var p = 0; p < this.particle_count; p++) {
+    	var pX = Math.random() * range.x - range.x/2,
+			pY = Math.random() * range.y - range.y/2,
+			pZ = Math.random() * range.z - range.z/2;
+
+		var point = new THREE.Vector3(pX, pY, pZ);
+		//var point = new THREE.Vector3( this.position.x, this.position.y, this.position.z );
+		particle_points.vertices.push( point );
+		this.point_velocities.push( new THREE.Vector3( ) );
+	}
+	this.particles = new THREE.Points( particle_points, pMaterial );
+	this.particles.sortParticles = true;
+	this.dead_particles_start = 0;
+	this.dead_particles_end = 0;
+	scene.add(this.particles);
+
+	requestAnimationFrame(this.update.bind(this));
+}
+
+ParticleSystem.prototype = Object.create(THREE.Mesh.prototype);
+ParticleSystem.prototype.constructor = ParticleSystem;
+ParticleSystem.prototype.update = function(){
+	var delta = this.clock.getDelta();
+	if(simulatePhysics){
+		var geo = this.particles.geometry;
+		var range = this.scale;
+		this.active_particles += Math.round(this.particle_count * delta * this.rate);
+		this.active_particles = Math.min(this.active_particles, this.particle_count);
+
+		if(this.particle_count != this.active_particles ){
+			for( var p = 0; p < this.particle_count; p++ ){
+				if( p < this.active_particles){
+					this.point_velocities.push( new THREE.Vector3( ) );
+					//this.particles.material.opacity = 1;
+				}
+				else{
+					geo.vertices[p].x = this.position.x + Math.random() * range.x - range.x/2;
+					geo.vertices[p].y = this.position.y + Math.random() * range.y - range.y/2;
+					geo.vertices[p].z = this.position.z + Math.random() * range.z - range.z/2;
+					//this.particles.material.opacity = 0;
+				}
+			}
+		}else{
+			this.dead_particles_end = Math.min( this.dead_particles_start + Math.round( this.particle_count * delta * this.rate), this.particle_count );
+			for( var p = this.dead_particles_start; p < this.dead_particles_end; p++ ){
+				var pX = this.position.x + Math.random() * range.x - range.x/2,
+					pY = this.position.y + Math.random() * range.y - range.y/2,
+					pZ = this.position.z + Math.random() * range.z - range.z/2;
+
+				geo.vertices[p].copy(new THREE.Vector3(pX, pY, pZ));
+				this.point_velocities[p].copy(new THREE.Vector3());
+			}
+			this.dead_particles_start = ( this.dead_particles_end < this.particle_count ) ? this.dead_particles_end : 0;
+		}
+		this.particles.geometry.verticesNeedUpdate = true;
+		this.particles.sortParticles = true;
+		var pLen = this.active_particles;
+
+		while (pLen--){
+			var verts = geo.vertices[pLen];
+			var g = new THREE.Vector3();
+			g.copy(scene_gravity);
+			var vel = this.point_velocities[ pLen ];
+			this.point_velocities[pLen].x = vel.x + g.x * delta;
+			this.point_velocities[pLen].y = vel.y + g.y * delta;
+			this.point_velocities[pLen].z = vel.z + g.z * delta;
+
+			verts.x +=  this.point_velocities[pLen].x * delta;
+			verts.y +=  this.point_velocities[pLen].y * delta;
+			verts.z +=  this.point_velocities[pLen].z * delta;
+		}
+		this.particles.geometry.verticesNeedUpdate = true;
+	}
+	requestAnimationFrame(this.update.bind(this));
+}
+//Particle System Class end
