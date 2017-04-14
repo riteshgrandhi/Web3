@@ -1,0 +1,253 @@
+<script src="http://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+<script src="https://threejs.org/examples/js/controls/TransformControls.js"</script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/shaders/CopyShader.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/EffectComposer.js"</script>
+<script src="scripts/RenderPass.js"</script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/OutlinePass.js"></script>
+<script src="https://rawgit.com/mrdoob/three.js/7d9cabaf06c2ebae0dde8c06a05e0f73b82e128a/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="http://threejs.org/examples/js/loaders/OBJLoader.js"></script>
+<script src="scripts/Physijs/physi.js"></script>
+<html>
+<head>
+<style>
+.dropbtn {
+    background-color: #4CAF0;
+    color: black;
+    padding: 10%;
+    min-width: 100px;
+    font-size: 90%;
+    border-style: hidden;
+    border-radius: 3px;
+    cursor: pointer;
+    width:100%;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    text-align: center;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 100px;
+    /*box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);*/
+    z-index: 1;
+    text-align: center;
+    padding: 0px 0%;
+}
+
+.dropdown-content input {
+    color: black;
+    background-color: #f9f9f9;
+    border-style: hidden;
+    min-width: 100px;
+    padding: 8%;
+    text-align: center;
+    font-size: 90%;
+}
+
+.dropdown-content input:hover {background-color: #f1f1f1}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown:hover .dropbtn {
+    background-color: #3e8e41;
+}
+.top ul{list-style-type:none;
+          }
+.top{
+        height:100%;
+        padding: 0.4%;
+        width:100%;
+        border:1px solid grey;
+        white-space: nowrap;
+        border-radius: 3px;
+        background-color : #444444;
+}
+.MidSection{
+      display: inline-block;
+      border:1px solid grey;
+      padding: 0.2%;
+      height: 60%;
+      vertical-align: top;
+}
+.button{
+      background-color : #444444;
+      color: lightgrey;
+      width:100%;
+			padding:1.5% 0%;
+			text-align:center;
+			border:1px hidden;}
+.full{
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  margin: 1%;
+  white-space: nowrap;
+}
+.textbox{
+  width:65%;
+  padding: 1%;
+  background-color: grey;
+  color: lightgrey;
+  border:1px solid black;
+  border-radius: 5px;
+}
+body{
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color : #222222;
+  font-family: Arial;
+  font-size: 80%;
+  color : lightgrey;
+}
+table{
+  font-family: Arial;
+  font-size: 90%;
+}
+td{
+  width:30%;
+}
+#propTable td{
+
+  width:20%;
+}
+/*td{
+  border:1px solid red;
+}*/
+.editorLog{
+        border:1px solid grey;
+        white-space: nowrap;
+        padding: 1.2%;
+        text-align: right;
+        margin-left: 1%;
+        border-radius: 3px;
+        background-color : #444444;
+		    width:100%;
+		    height:100%;
+        overflow-y: auto;
+         }
+.topSection{
+    height:10%;
+    padding: 0.5%;
+    display:inline-block;
+    vertical-align:top;
+  /*border:1px solid red;*/}
+</style>
+
+  
+</head>
+<body id="main_body">
+<div class="topSection" style="width: 69%">
+<div class="top" >
+<ul><div class="dropdown">
+  <button class="dropbtn">
+    <li>Objects</li>
+  </button>
+  <div class="dropdown-content">
+    <!--<a href="#">Cube</a>-->
+    <input type="button" value="Cube" onclick="addNewObj(1)"><br>
+    <input type="button" value="Cylinder" onclick="addNewObj(2)"><br>
+    <input type="button" value="Sphere" onclick="addNewObj(3)"><br>
+    <input type="button" value="Custom" onclick="addNewObj(4)"><br>
+  </div>
+</div>
+ <div class="dropdown">
+  <button class="dropbtn"> <li>Lamps</li></button>
+  <div class="dropdown-content">
+    <input type="button" value="Point" onclick="addLamp(1)"><br>
+    <input type="button" value="Sun" onclick="addLamp(2)"><br>
+    <input type="button" value="Spot" onclick="addLamp(3)"><br>
+    <input type="button" value="Ambient" onclick="addLamp(4)"><br>
+  </div>
+</div>
+<div class="dropdown">
+  <button class="dropbtn" onclick="addNewObj(5)"> <li>Particle System</li></button>
+</div>  
+<div class="dropdown">
+  <button class="dropbtn"> <li>About</li></button>
+</div>
+<div class="dropdown" style="float: right;margin-right: 3%">
+<button class="dropbtn" style="background-color: #ff4d4d;min-width: 70px;min-height: 33px;" onclick="removeObject()"> <li>Remove</li></button>
+</div>
+  
+</ul>
+
+
+</div>
+</div>
+<div class="topSection" style="width: 27%" >
+<div id="editorLog" class="editorLog">
+
+</div></div>
+<div class="full">
+<div class="MidSection" id="objectList" style="padding:0.3%;width:20%;background-color:#444444;border-radius: 3px;overflow-y: auto;"></div>
+
+<div class="MidSection" id="viewport" style="padding:0.3%;width: 50%;background-color : #444444;border-radius: 3px;"></div>
+
+<div class="MidSection" id="propTab" style="padding:0.3%;width:26%;background-color : #444444;border-radius: 3px;overflow-y: scroll;"> 
+ Name &nbsp;<input type="text" class="textbox" id="objName" style="width: 80%;" onkeypress="setObjName(event)"></br></br>
+ <b>Transform</b><br>
+ <table id="propTable" style="width: 100%;">
+  <tr>
+    <td>Position</td>
+    <td>X <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="pX"></td> 
+    <td>Y <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="pY"></td>
+    <td>Z <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="pZ"></td>
+  </tr>
+  <tr>
+    <td>Rotation</td>
+    <td>X <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="rX"></td>
+    <td>Y <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="rY"></td>
+    <td>Z <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="rZ"></td>
+  </tr>
+  <tr>
+  <td>Scale</td>
+    <td>X <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="sX"></td>
+    <td>Y <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="sY"></td>
+    <td>Z <input class="textbox" type="text" onkeydown="updateTransforms(event)" id="sZ"></td>
+  </tr>
+ </table>
+ <table>
+ <b>Physics</b><br>
+ <tr><td>Static</td><td><input type="checkbox"  value="static" id="phy_static"></td></tr>
+ <tr><td>Mass</td><td><input class="textbox" type="text" id="phy_mass"></td></tr>
+ <tr><td>Friction</td><td><input class="textbox" type="text" id="phy_friction"></td></tr>
+ <tr><td>Restitution</td><td><input class="textbox" type="text" id="phy_restitution"></td></tr>
+ </table>
+ <b>Material</b><br>
+ <table>
+ <tr><td>Name</td><td><input class="textbox" type="text" id="mat_name" value="basic"></td></tr>
+ <tr><td>Color</td><td><input class="textbox" type="color" id="mat_color" value="#555555"></td></tr>
+ <tr><td>Type</td><td>
+  <select class="textbox" type="text" id="mat_type">
+    <option value="1">Basic</option>
+    <option value="2">Lambert</option>
+    <option value="3">Standard</option>
+    <option value="4">Phong</option> 
+  </select></td></tr>
+ <tr><td>Texture</td><td><input class="textbox" type="button" id="mat_tex" value="SELECT" onclick="importTexture()"></td></tr>
+ </table>
+ <b>Particle System</b><br>
+ <table>
+ <tr><td>Opacity</td><td><input class="textbox" type="text" id="part_opacity"></td></tr>
+ <tr><td>Size</td><td><input class="textbox" type="text" id="part_size"></td></tr>
+ <tr><td>Rate</td><td><input class="textbox" type="text" id="part_rate"></td></tr>
+ <tr><td>Gravity Influence</td><td><input class="textbox" type="text" id="part_gInfluence"></td></tr>
+ </table>
+ </div>
+
+</div>
+<div id="bottom" style="padding:0.3%;width:99%;height:40%;background-color:#444444;border: 1px solid grey;border-radius: 3px;">
+<button class="dropbtn" style="width:5%;padding: 0.6%;margin: 0.2%" onclick="appendUserCode()">Save</button>
+<textarea class="textbox" id="userCode" style="width:100%;height:85%;color: white"></textarea>
+</div>
+<script src="scripts/main.js"></script>
+</body>
+</html>

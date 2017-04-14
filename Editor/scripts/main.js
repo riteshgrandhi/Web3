@@ -1,5 +1,5 @@
 var scene, renderer, camera, controls, grid;
-var userObjects = [];
+var userObjects = [],userObjectsOldPos = [];
 var selectionBox,selectionControls;
 var selectedObjects=[];
 var canvasElem = document.getElementById( "viewport" );
@@ -7,6 +7,7 @@ var editorLog = document.getElementById( "editorLog" );
 var propertiesTab = document.getElementById( "propTab" );
 var WIDTH = canvasElem.getBoundingClientRect().width;
 var HEIGHT = canvasElem.getBoundingClientRect().height;
+const particle_limit = 10000;
 
 var scene_gravity = new THREE.Vector3( 0, -10, 0);
 var simulatePhysics = false;
@@ -76,7 +77,7 @@ function animate(){
 }
 function addNewObj(type){
 	var obj;
-	var defaultMaterial = new THREE.MeshBasicMaterial({color: 0xffffbb});
+	var defaultMaterial = new THREE.MeshBasicMaterial({color: 0x555555});
 	switch(type){
 		case 1: //obj = new Physijs.BoxMesh(new THREE.BoxBufferGeometry(1, 1, 1), defaultMaterial);
 				obj = new GameObject(new THREE.BoxBufferGeometry(1, 1, 1), defaultMaterial, Physijs.BoxMesh);
@@ -93,6 +94,7 @@ function addNewObj(type){
 				break;
 	}
 	scene.add(obj);
+	obj.scene_index = userObjects.length;
 	userObjects.push(obj);
 	obj.name = "object." + userObjects.length;
 	updateList();
@@ -103,15 +105,52 @@ function addNewObj(type){
 	}else{
 		selectionBox.update(obj);
 	}
-	
+	obj.setAsStatic();
 	selectObject(obj);
-	//document.getElementById( "menu" ).innerHTML += selectedObjects[0].name;
-
-	obj.__dirtyPosition = true;
-    obj.__dirtyRotation = true;
-
 	animate();
 	return false;
+}
+function removeObject(){
+	if(selectedObjects[0] && userObjects.length>1){
+		var name = selectedObjects[0].name;
+		var index = selectedObjects[0].scene_index;
+		userObjects.splice(index,1);
+		scene.remove(selectedObjects[0]);
+		updateList();
+		selectObject(userObjects[(index+1)%userObjects.length]);
+		LogEditor(name + " removed from scene","success");
+	}else{
+		LogEditor("2 or more Objects must be present to remove an Object","error")
+	}
+}
+function addLamp(type){
+	var lamp;
+	switch(type){
+		case 1: //lamp = new THREE.PointLight( 0xff0000, 1, 100 );
+				lamp = new Lamp( 1 , 0xff0000, 100 );
+				break;
+		case 2: //lamp = new THREE.DirectionalLight( 0xffffff, 0.5 );
+				lamp = new Lamp( 2 , 0xff0000, 1 );
+				break;
+		case 3: //lamp = new THREE.SpotLight( 0xffffff );
+				lamp = new Lamp( 3 , 0xff0000);
+				break;
+		case 4: //lamp = new THREE.AmbientLight( 0x404040 );
+				lamp = new Lamp( 4 , 0xff0000);
+				break;
+	}
+	scene.add(lamp);
+	lamp.name = "lamp." + userObjects.length;
+	userObjects.push(lamp);
+	updateList();
+	if(selectionBox == undefined){
+		selectionBox = new THREE.BoxHelper(lamp, 0xff0000);
+		scene.add(selectionBox);
+	}else{
+		selectionBox.update(lamp);
+	}
+	selectObject(lamp);
+	animate();
 }
 
 function updateViewportControls(){
@@ -166,12 +205,14 @@ function onEditorMouseClick(event){
 }
 
 function selectObject(obj){
+	/*obj.__dirtyPosition = true;
+	obj.__dirtyRotation = true;*/
 	selectedObjects = [];
 	selectedObjects.push(obj);
 	selectionControls.attach(obj);
 	//document.getElementById("objName").value = obj.name;
 	setColor(parseInt(obj.userData.ButtonId) , false);
-	document.getElementById("bottom").innerHTML = obj.name;
+	//document.getElementById("bottom").innerHTML = obj.name;
 	updatePropertiesTab();
 	//render();
 }
@@ -180,25 +221,39 @@ function onEditorKeyDown(event){
 	//event.preventDefault();
 	var key = event.keyCode;
 	//console.log( key );
-	if(key == 80){	//Enter Key Pressed
+	if(key == 80){	//P Key Pressed
 		simulatePhysics = simulatePhysics ? false : true;
 		if(simulatePhysics){
+			setUserObjectsOldPositions();
 			scene.onSimulationResume();
+			LogEditor("Simulation started","success");
+		}else{
+			/*selectedObjects[0].__dirtyPosition = true;
+			selectedObjects[0].__dirtyRotation = true;*/
+			resetScene();
+			LogEditor("Simulation stopped","error");
 		}
 	}
-	if(key == 17){
+	if(key == 17){//Control Key
 		selectionControls.setTranslationSnap(1);
+	}
+	if(key == 110 || key == 190 || key == 70){ //fullstop,numpad fullstop and F keys
+		var selPos = selectedObjects[0].position;
+		var vec = new THREE.Vector3();
+		camera.getWorldDirection( vec );
+		vec.multiplyScalar(-4 * selectedObjects[0].scale.length());
+		vec.add(selPos);
+		camera.position.copy(vec);
+		controls.target.set(selPos.x,selPos.y,selPos.z);
 	}
 }
 
 function onEditorKeyUp(event){
 	//event.preventDefault();
 	var key = event.keyCode;
-	if(key == 17){
+	//console.log(key);
+	if(key == 17){//Control Key
 		selectionControls.setTranslationSnap(null);
-	}if(key == 110 || key == 190){
-		console.log("lol");
-		camera.lookAt(selectedObjects[0].position);
 	}
 }
 
@@ -274,9 +329,11 @@ function addCustomObj(material){
 	var manager = new THREE.LoadingManager();
 				manager.onProgress = function ( item, loaded, total ) {
 					console.log( item, loaded, total );
-					editorLog.innerHTML += "<span style='color:lightgreen'>" + item + ' loaded <br></span>';
+					//editorLog.innerHTML += "<span style='color:lightgreen'>" + item + ' loaded <br></span>';
+					LogEditor( item + ' loaded <br>', "success" );
 				};
 	var texture = new THREE.TextureLoader( manager ).load(texPath);
+	material.color = new THREE.Color(0x666666);
     var loader  = new THREE.OBJLoader( manager ).load(objPath,  
     	function ( object )
         {
@@ -297,13 +354,15 @@ function addCustomObj(material){
             while(object.parent!=null){
 				object=object.parent;
 			}
-			var obj = new Physijs.BoxMesh( objGeometry, material);
+			//var obj = new Physijs.BoxMesh( objGeometry, material);
+			var obj = new GameObject(objGeometry, material, Physijs.BoxMesh);
 			/*obj.__dirtyPosition = true;
     		obj.__dirtyRotation = true;*/
 
     		scene.add(obj);
 			userObjects.push(obj);
-			
+			obj.setAsStatic();
+
 			obj.name = name == '' ? "object." + userObjects.length : name;
 			updateList();
 			if(selectionBox == undefined){
@@ -319,14 +378,50 @@ function addCustomObj(material){
 			if ( xhr.lengthComputable ) {
 				var percentComplete = xhr.loaded / xhr.total * 100;
 				console.log( Math.round(percentComplete, 2) + '% downloaded' );
-				editorLog.innerHTML += Math.round(percentComplete, 2) + '% downloaded <br>';
+				//editorLog.innerHTML += Math.round(percentComplete, 2) + '% downloaded <br>';
+				LogEditor( Math.round(percentComplete, 2) + '% downloaded' );
 				}
 			},
 			function ( xhr ) {
 				//window.alert("failed to load resource from " + objPath);
-				editorLog.innerHTML += "<span style='color:red'>" + "Failed to load resource from '" + objPath + "'<br></span>";
+				//editorLog.innerHTML += "<span style='color:red'>" + "Failed to load resource from '" + objPath + "'<br></span>";
+				LogEditor( "Failed to load resource from '" + objPath + "'", "error");
 				return null;
 			} );
+}
+
+function resetScene(){
+	var zVec = new THREE.Vector3();
+	for(i=0; i<userObjects.length; i++){
+		userObjects[i].position.x = userObjectsOldPos[i].px;
+		userObjects[i].position.y = userObjectsOldPos[i].py;
+		userObjects[i].position.z = userObjectsOldPos[i].pz;
+
+		userObjects[i].rotation.x = userObjectsOldPos[i].rx;
+		userObjects[i].rotation.y = userObjectsOldPos[i].ry;
+		userObjects[i].rotation.z = userObjectsOldPos[i].rz;
+		//console.log(userObjectsOldPos[i]);
+		userObjects[i].__dirtyPosition = true;
+		userObjects[i].__dirtyRotation = true;
+		userObjects[i].setAngularVelocity( zVec );
+		userObjects[i].setLinearVelocity( zVec );
+	}	
+}
+
+function setUserObjectsOldPositions(){
+	var i=0;
+	userObjectsOldPos = [];
+	for(i=0; i<userObjects.length; i++){
+		var posToPush = {};
+		posToPush.px = userObjects[i].position.x;
+		posToPush.py = userObjects[i].position.y;
+		posToPush.pz = userObjects[i].position.z;
+		posToPush.rx = userObjects[i].rotation.x;
+		posToPush.ry = userObjects[i].rotation.y;
+		posToPush.rz = userObjects[i].rotation.z;
+		userObjectsOldPos.push( posToPush );
+		//LogEditor(userObjects[i].position.x);
+	}
 }
 
 function updateTransforms(event = null){
@@ -359,14 +454,12 @@ function updateTransforms(event = null){
 }
 
 function onPropertiesChanged(event){
-	console.log("properties changed");
+	//console.log("properties changed");
 	var targ = event.target;
 	if(targ.id.substring(0,4) == "phy_"){
 		if(targ.id.substring(4) == "static"){
 			if(targ.checked){
-				selectedObjects[0].setAngularFactor( new THREE.Vector3() );
-				selectedObjects[0].setLinearFactor( new THREE.Vector3() );
-				selectedObjects[0].isStatic = true;
+				selectedObjects[0].setAsStatic();
 				//selectedObjects[0]._physijs.mass = 0;
 			}else{
 				selectedObjects[0].setAngularFactor( new THREE.Vector3( 1 ,1 ,1 ) );
@@ -375,13 +468,61 @@ function onPropertiesChanged(event){
 				//selectedObjects[0]._physijs.mass = 1;
 			}
 		}
+		if(targ.id.substring(4) == "mass"){
+			selectedObjects[0]._physijs.mass = parseFloat(targ.value) ;
+		}
 		if(targ.id.substring(4) == "friction"){
 			selectedObjects[0].setFriction( parseFloat(targ.value) );
-			targ.blur();
 		}if(targ.id.substring(4) == "restitution"){
 			selectedObjects[0].setRestitution( parseFloat(targ.value) );
-			targ.blur();
 		}
+		targ.blur();
+	}/*else{
+		targ.value = "";
+	}*/
+	if(targ.id.substring(0,5) == "part_" && selectedObjects[0].ObjType == "ParticleSystem"){
+		if(targ.id.substring(5) == "opacity"){
+			selectedObjects[0].particles.material.opacity = parseFloat(targ.value);
+		}
+		if(targ.id.substring(5) == "size"){
+			selectedObjects[0].particles.material.size = parseFloat(targ.value);
+		}
+		if(targ.id.substring(5) == "rate"){
+			selectedObjects[0].rate = parseFloat(targ.value);
+		}
+		if(targ.id.substring(5) == "gInfluence"){
+			selectedObjects[0].gravity_influence = parseFloat(targ.value);
+		}
+		targ.blur();
+	}/*else{
+		targ.value = "";
+	}*/
+	if(targ.id.substring(0,4) == "mat_" && userObjects.length>0){
+		if(targ.id.substring(4) == "name"){
+			selectedObjects[0].MatName = targ.value;
+		}
+		if(targ.id.substring(4) == "color"){
+			selectedObjects[0].material.color.setHex( "0x" + targ.value.substring(1) );
+		}
+		if(targ.id.substring(4) == "type"){
+			var newMat;
+			var curMat = selectedObjects[0].material;
+			if(targ.value == "1"){
+				selectedObjects[0].MatType = 1;
+				newMat = new THREE.MeshBasicMaterial({color: curMat.color});
+			}else if(targ.value == "2"){
+				selectedObjects[0].MatType = 2;
+				newMat = new THREE.MeshLambertMaterial({color: curMat.color});
+			}else if(targ.value == "3"){
+				selectedObjects[0].MatType = 3;
+				newMat = new THREE.MeshStandardMaterial({color: curMat.color});
+			}else if(targ.value == "4"){
+				selectedObjects[0].MatType = 4;
+				newMat = new THREE.MeshPhongMaterial({color: curMat.color});
+			}
+			selectedObjects[0].material = newMat;
+		}
+		targ.blur();
 	}
 }
 function updatePropertiesTab(){
@@ -397,17 +538,81 @@ function updatePropertiesTab(){
 		document.getElementById("sX").value = obj.scale.x;
 		document.getElementById("sY").value = obj.scale.y;
 		document.getElementById("sZ").value = obj.scale.z;
+		if(obj.isLight){
+			return;
+		}
 		document.getElementById("phy_static").checked = obj.isStatic;
 		document.getElementById("phy_mass").value = obj.mass;
 		document.getElementById("phy_friction").value = obj.friction;
 		document.getElementById("phy_restitution").value = obj.restitution;
+		document.getElementById("mat_name").value = selectedObjects[0].MatName;
+		document.getElementById("mat_color").value = '#' + obj.material.color.getHexString();
+		document.getElementById("mat_type").value = selectedObjects[0].MatType + "";
+		if(obj.ObjType == "GameObject"){
+			document.getElementById("part_opacity").value = "";
+			document.getElementById("part_size").value = "";
+			document.getElementById("part_rate").value = "";
+			document.getElementById("part_gInfluence").value = "";
+		}else if(obj.ObjType == "ParticleSystem"){
+			document.getElementById("part_opacity").value = obj.particles.material.opacity;
+			document.getElementById("part_size").value = obj.size;
+			document.getElementById("part_rate").value = obj.rate;
+			document.getElementById("part_gInfluence").value = obj.gravity_influence;
+		}
 	}
+}
+function LogEditor(message, type = "message"){
+	var spn = "";
+	if( type == "error" ){
+		spn = "<span style='color:red'>";
+	}else if( type == "message" ){
+		spn = "<span style='color:white'>";
+	}else if( type == "success" ){
+		spn = "<span style='color:lightgreen'>";
+	}else{
+		return;
+	}
+	editorLog.innerHTML += spn + message + "<br></span>";
+}
+
+function appendUserCode(){
+	var s = document.createElement("script");
+	s.type = "text/javascript";
+	s.id = "appendedCode";
+    s.innerHTML = "window.addEventListener('keyup',runUserCode);function runUserCode(event){if(simulatePhysics){"
+					+document.getElementById("userCode").value
+        			+"window.requestAnimationFrame(runUserCode);}}";
+    document.getElementById("main_body").appendChild(s);
+	//document.getElementById("appendedCode").remove();
+	//console.log(document.getElementById("main_body"));
+}
+
+function importTexture(){
+	var path = window.prompt("Enter path of texture:");
+	var manager = new THREE.LoadingManager();
+	manager.onProgress = function ( item, loaded, total ) {
+			console.log( item, loaded, total );
+			LogEditor( item + ' loaded <br>', "success" );
+		};
+	manager.onError = function ( item ) {
+		LogEditor( 'Failed to load ' + item + ' <br>', "error" );
+		return;
+	};
+	var texture = new THREE.TextureLoader( manager ).load(path);
+	console.log(texture);
+	//if(texture.image)
+		selectedObjects[0].material.map = texture;
+		selectedObjects[0].material.needsUpdate = true;
 }
 //GameObject Class start
 function GameObject(geometry, material, Meshtype){
-	this.isStatic = false;
+	this.isStatic = true;
 	this.friction = 0.8;
 	this.restitution = 0.2;
+	this.ObjType = "GameObject";
+	this.MatType = 1;
+	this.MatName = "new Material";
+	this.scene_index = -1;
 
 	this.phyMaterial = Physijs.createMaterial( material, this.friction, this.restitution );
 	Meshtype.call(this, geometry, this.phyMaterial);
@@ -425,9 +630,18 @@ GameObject.prototype.setRestitution = function(restitution){
 	this.restitution = restitution;
 	this.phyMaterial._physijs.restitution = this.restitution;
 }
+GameObject.prototype.setAsStatic = function(){
+	var zVec = new THREE.Vector3();
+	this.setAngularFactor( zVec );
+	this.setAngularVelocity( zVec );
+	this.setLinearFactor( zVec );
+	this.setLinearVelocity( zVec );
+	this.isStatic = true;
+}
 //GameObject Class end
 //Particle System Class start
-function ParticleSystem(count = 10000, size = 0.2, rate = 0.1 ){
+function ParticleSystem(count = particle_limit, size = 0.2, rate = 0.1, particle_opacity = 0.5 ){
+	this.waitForUpdateFlag = false;
 	this.particle_count = count;
 	this.rate = rate;
 	this.active_particles = Math.round(count * 0.016);
@@ -440,19 +654,21 @@ function ParticleSystem(count = 10000, size = 0.2, rate = 0.1 ){
       color: 0xFFFFFF,
       size: size,
       transparent:true,
-      opacity:0.5
+      opacity: particle_opacity
     });
 
-    var mesh_trans_material = new THREE.MeshLambertMaterial( {transparent:true, opacity:0} );
-	THREE.Mesh.call( this, new THREE.BoxBufferGeometry( 1, 1, 1), mesh_trans_material );
-	//GameObject.call( this, new THREE.BoxBufferGeometry( 1, 1, 1), mesh_trans_material, Physijs.BoxMesh );
+    var mesh_trans_material = new THREE.MeshLambertMaterial( {visible:false/*transparent:true, opacity:0*/} );
+	//THREE.Mesh.call( this, new THREE.BoxGeometry( 1, 1, 1), mesh_trans_material );
+	GameObject.call( this, new THREE.BoxBufferGeometry( 1, 1, 1), mesh_trans_material, Physijs.BoxMesh );
+	this.ObjType = "ParticleSystem";
 	//this.mass = 0;
 
 	var range = this.scale;
     for (var p = 0; p < this.particle_count; p++) {
-    	var pX = Math.random() * range.x - range.x/2,
+    	/*var pX = Math.random() * range.x - range.x/2,
 			pY = Math.random() * range.y - range.y/2,
-			pZ = Math.random() * range.z - range.z/2;
+			pZ = Math.random() * range.z - range.z/2;*/
+		var pX = 0, pY = 0, pZ = 0;
 
 		var point = new THREE.Vector3(pX, pY, pZ);
 		//var point = new THREE.Vector3( this.position.x, this.position.y, this.position.z );
@@ -464,11 +680,13 @@ function ParticleSystem(count = 10000, size = 0.2, rate = 0.1 ){
 	this.dead_particles_start = 0;
 	this.dead_particles_end = 0;
 	scene.add(this.particles);
-
-	requestAnimationFrame(this.update.bind(this));
+	if(!this.waitForUpdateFlag){
+		requestAnimationFrame(this.update.bind(this));
+	}
 }
 
-ParticleSystem.prototype = Object.create(THREE.Mesh.prototype);
+//ParticleSystem.prototype = Object.create(THREE.Mesh.prototype);
+ParticleSystem.prototype = Object.create(GameObject.prototype);
 ParticleSystem.prototype.constructor = ParticleSystem;
 ParticleSystem.prototype.update = function(){
 	var delta = this.clock.getDelta();
@@ -480,15 +698,21 @@ ParticleSystem.prototype.update = function(){
 
 		if(this.particle_count != this.active_particles ){
 			for( var p = 0; p < this.particle_count; p++ ){
+				/*if( p < particle_limit && p > this.particle_count){
+					LogEditor(p);
+					geo.vertices[p].x = 0;
+					geo.vertices[p].y = 0;
+					geo.vertices[p].z = 0;
+				}*/
 				if( p < this.active_particles){
 					this.point_velocities.push( new THREE.Vector3( ) );
-					//this.particles.material.opacity = 1;
+					//this.particles.material.opacity = 0;
 				}
 				else{
 					geo.vertices[p].x = this.position.x + Math.random() * range.x - range.x/2;
 					geo.vertices[p].y = this.position.y + Math.random() * range.y - range.y/2;
 					geo.vertices[p].z = this.position.z + Math.random() * range.z - range.z/2;
-					//this.particles.material.opacity = 0;
+					//this.particles.material.opacity = 1;
 				}
 			}
 		}else{
@@ -500,21 +724,24 @@ ParticleSystem.prototype.update = function(){
 
 				geo.vertices[p].copy(new THREE.Vector3(pX, pY, pZ));
 				this.point_velocities[p].copy(new THREE.Vector3());
+				//this.particles.material.opacity = this.particle_opacity;
 			}
 			this.dead_particles_start = ( this.dead_particles_end < this.particle_count ) ? this.dead_particles_end : 0;
 		}
 		this.particles.geometry.verticesNeedUpdate = true;
 		this.particles.sortParticles = true;
 		var pLen = this.active_particles;
-
+		//var pLen = particle_limit;
+		//LogEditor(pLen);
 		while (pLen--){
+			this.particles.material.opacity = 0.5;
 			var verts = geo.vertices[pLen];
 			var g = new THREE.Vector3();
 			g.copy(scene_gravity);
 			var vel = this.point_velocities[ pLen ];
-			this.point_velocities[pLen].x = vel.x + g.x * delta;
-			this.point_velocities[pLen].y = vel.y + g.y * delta;
-			this.point_velocities[pLen].z = vel.z + g.z * delta;
+			this.point_velocities[pLen].x = vel.x + g.x * delta * this.gravity_influence;
+			this.point_velocities[pLen].y = vel.y + g.y * delta * this.gravity_influence;
+			this.point_velocities[pLen].z = vel.z + g.z * delta * this.gravity_influence;
 
 			verts.x +=  this.point_velocities[pLen].x * delta;
 			verts.y +=  this.point_velocities[pLen].y * delta;
@@ -522,6 +749,59 @@ ParticleSystem.prototype.update = function(){
 		}
 		this.particles.geometry.verticesNeedUpdate = true;
 	}
+	if(!this.waitForUpdateFlag){
+		requestAnimationFrame(this.update.bind(this));
+	}
+}
+ParticleSystem.prototype.updateParticleCount = function(newCount){
+	var geo = this.particles.geometry;
+	var range = this.scale;
+	//this.waitForUpdateFlag = true;
+	var p = this.particle_count;
+	//this.active_particles = Math.round(p * 0.016);
+	while(p--){
+		geo.vertices[p].x = this.position.x + Math.random() * range.x - range.x/2;
+		geo.vertices[p].y = this.position.y + Math.random() * range.y - range.y/2;
+		geo.vertices[p].z = this.position.z + Math.random() * range.z - range.z/2;
+		this.point_velocities[p].copy(new THREE.Vector3());
+		this.particles.material.opacity = 0;
+	}
+	this.particle_count = newCount;
+	//this.waitForUpdateFlag = false;
 	requestAnimationFrame(this.update.bind(this));
+	console.log(this.particle_count);
 }
 //Particle System Class end
+//Lamp Class start
+function Lamp(lampType = 1, color, intensity = 10){
+	this.light_source;
+	this.helper;
+	var mesh_trans_material = new THREE.MeshBasicMaterial( {visible:false/*transparent:true, opacity:0*/} );
+	THREE.Mesh.call( this, new THREE.BoxGeometry( 1, 1, 1), mesh_trans_material );
+	switch(lampType){
+		case 1: this.light_source = new THREE.PointLight( this.color, this.intensity ,100);
+				this.helper = new THREE.PointLightHelper(this.light_source,1);
+				break;
+		case 2: this.light_source = new THREE.DirectionalLight( this.color, this.intensity);
+				this.helper = new THREE.DirectionalLightHelper(this.light_source);
+				break;
+		case 3: this.light_source = new THREE.SpotLight( this.color, this.intensity ,100);
+				this.helper = new THREE.SpotLightHelper(this.light_source);
+				break;
+		case 4: this.light_source = new THREE.AmbientLight( this.color, this.intensity ,100);
+				this.helper = new THREE.PointLightHelper(this.light_source);
+				break;
+	}
+	//requestAnimationFrame(this.update.bind(this));
+	scene.add(this.light_source);
+	scene.add(this.helper);
+	this.update();
+}
+Lamp.prototype = Object.create(THREE.Mesh.prototype);
+Lamp.prototype.constructor = Lamp;
+Lamp.prototype.update = function(){
+	this.light_source.position.set(this.position.x, this.position.y, this.position.z);
+	this.helper.update();
+	requestAnimationFrame(this.update.bind(this));
+}
+//Lamp Class end
